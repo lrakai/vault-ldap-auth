@@ -1,0 +1,465 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "HashiCorp Vault LDAP Authentication",
+    "Parameters": {
+        "Region": {
+            "Type": "String",
+            "Default": "us-west-2"
+        }
+    },
+    "Mappings": {
+        "SubnetConfig": {
+            "VPC": {
+                "CIDR": "10.0.0.0/20"
+            },
+            "TestSubnet": {
+                "CIDR": "10.0.0.0/24",
+                "AZ": "us-west-2a"
+            }
+        },
+        "InstanceConfig": {
+            "Ldap": {
+                "Ip": "10.0.2.100"
+            }
+        },
+        "UserConfig": {
+            "Login": {
+                "Name": "student",
+                "Pass": "password"
+            }
+        }
+    },
+    "Resources": {
+        "LdapInstance": {
+            "Type": "AWS::EC2::Instance",
+            "Properties": {
+                "IamInstanceProfile": {
+                    "Ref": "LdapInstanceProfile"
+                },
+                "ImageId": "ami-31394949",
+                "InstanceType": "t2.micro",
+                "KeyName": {
+                    "Ref": "AWS::AccountId"
+                },
+                "PrivateIpAddress": {
+                    "Fn::FindInMap": [
+                        "InstanceConfig",
+                        "Ldap",
+                        "Ip"
+                    ]
+                },
+                "SecurityGroupIds": [
+                    {
+                        "Fn::GetAtt": [
+                            "LdapSecurityGroup",
+                            "GroupId"
+                        ]
+                    }
+                ],
+                "SubnetId": {
+                    "Ref": "TestSubnet"
+                },
+                "Tags": [
+                    {
+                        "Key": "Type",
+                        "Value": "LDAP Server"
+                    },
+                    {
+                        "Key": "Name",
+                        "Value": "LDAP"
+                    }
+                ],
+                "UserData": {
+                    "Fn::Base64": {
+                        "Fn::Join": [
+                            "",
+                            [
+                                "#!/bin/bash\n",
+                                "yum install -y haproxy-1.5.18-6.amzn2.x86_64\n",
+                                "cat <<EOF > /etc/haproxy/haproxy.cfg\n",
+                                "global\n",
+                                "    log         127.0.0.1 local2\n",
+                                "    chroot      /var/lib/haproxy\n",
+                                "    pidfile     /var/run/haproxy.pid\n",
+                                "    maxconn     4000\n",
+                                "    user        haproxy\n",
+                                "    group       haproxy\n",
+                                "    daemon\n",
+                                "    stats socket /var/lib/haproxy/stats\n",
+                                "defaults\n",
+                                "    mode                    http\n",
+                                "    log                     global\n",
+                                "    option                  httplog\n",
+                                "    option                  dontlognull\n",
+                                "    option http-server-close\n",
+                                "    option forwardfor       except 127.0.0.0/8\n",
+                                "    option                  redispatch\n",
+                                "    retries                 3\n",
+                                "    timeout http-request    10s\n",
+                                "    timeout queue           1m\n",
+                                "    timeout connect         10s\n",
+                                "    timeout client          1m\n",
+                                "    timeout server          1m\n",
+                                "    timeout http-keep-alive 10s\n",
+                                "    timeout check           10s\n",
+                                "    maxconn                 3000\n",
+                                "frontend http-in\n",
+                                "    bind *:80\n",
+                                "    default_backend app\n",
+                                "backend app\n",
+                                "    balance     roundrobin\n",
+                                "    server  app1 10.0.2.100:8080 check\n",
+                                "EOF\n",
+                                "systemctl enable haproxy\n",
+                                "systemctl start haproxy\n",
+                                "yum install -y ruby-2.0.0.648-33.amzn2.0.1.x86_64\n",
+                                "gem install serverspec -v 2.41.3\n",
+                                "useradd -G adm,wheel serverspec\n",
+                                "echo 'serverspec:1Cloud_Academy_Labs!' | chpasswd\n",
+                                "sed -i 's/\\(PasswordAuthentication \\).*/\\1yes/g' /etc/ssh/sshd_config\n",
+                                "systemctl restart sshd\n"
+                            ]
+                        ]
+                    }
+                }
+            }
+        },
+        "AppEc2InstanceRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": [
+                                    "ec2.amazonaws.com"
+                                ]
+                            },
+                            "Action": [
+                                "sts:AssumeRole"
+                            ]
+                        }
+                    ]
+                },
+                "Path": "/",
+                "Policies": [
+                    {
+                        "PolicyName": "app-instance-policy",
+                        "PolicyDocument": {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Action": [
+                                        "iam:*"
+                                    ],
+                                    "Effect": "Deny",
+                                    "Resource": "*"
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "RoleName": "app-instance-role"
+            }
+        },
+        "AppInstanceProfile": {
+            "Type": "AWS::IAM::InstanceProfile",
+            "Properties": {
+                "Path": "/",
+                "Roles": [
+                    {
+                        "Ref": "AppEc2InstanceRole"
+                    }
+                ]
+            }
+        },
+        "Cloud9Env": {
+            "Type": "AWS::Cloud9::EnvironmentEC2",
+            "Properties": {
+                "Description": "Lab Cloud9 Environment",
+                "AutomaticStopTimeMinutes": 60,
+                "InstanceType": "t2.micro",
+                "OwnerArn": {
+                    "Fn::Join": [
+                        "",
+                        [
+                            "arn:aws:iam::",
+                            {
+                                "Ref": "AWS::AccountId"
+                            },
+                            ":user/student"
+                        ]
+                    ]
+                },
+                "Name": "Lab",
+                "SubnetId": {
+                    "Ref": "TestSubnet"
+                }
+            }
+        },
+        "TestVpc": {
+            "Type": "AWS::EC2::VPC",
+            "Properties": {
+                "CidrBlock": {
+                    "Fn::FindInMap": [
+                        "SubnetConfig",
+                        "VPC",
+                        "CIDR"
+                    ]
+                },
+                "EnableDnsSupport": true,
+                "EnableDnsHostnames": true,
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "Test Vpc"
+                    },
+                    {
+                        "Key": "Environment",
+                        "Value": "Test"
+                    }
+                ]
+            }
+        },
+        "TestSubnet": {
+            "Type": "AWS::EC2::Subnet",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "TestVpc"
+                },
+                "MapPublicIpOnLaunch": true,
+                "AvailabilityZone": {
+                    "Fn::FindInMap": [
+                        "SubnetConfig",
+                        "TestSubnet",
+                        "AZ"
+                    ]
+                },
+                "CidrBlock": {
+                    "Fn::FindInMap": [
+                        "SubnetConfig",
+                        "TestSubnet",
+                        "CIDR"
+                    ]
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "Test Subnet"
+                    },
+                    {
+                        "Key": "Environment",
+                        "Value": "Test"
+                    }
+                ]
+            }
+        },
+        "TestInternetGatewayAttach": {
+            "Type": "AWS::EC2::VPCGatewayAttachment",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "TestVpc"
+                },
+                "InternetGatewayId": {
+                    "Ref": "TestInternetGateway"
+                }
+            }
+        },
+        "TestPublicRouteTable": {
+            "Type": "AWS::EC2::RouteTable",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "TestVpc"
+                }
+            }
+        },
+        "TestPublicRoute": {
+            "Type": "AWS::EC2::Route",
+            "Properties": {
+                "RouteTableId": {
+                    "Ref": "TestPublicRouteTable"
+                },
+                "DestinationCidrBlock": "0.0.0.0/0",
+                "GatewayId": {
+                    "Ref": "TestInternetGateway"
+                }
+            }
+        },
+        "TestSubnetRouteTableAssociation": {
+            "Type": "AWS::EC2::SubnetRouteTableAssociation",
+            "Properties": {
+                "SubnetId": {
+                    "Ref": "TestSubnet"
+                },
+                "RouteTableId": {
+                    "Ref": "TestPublicRouteTable"
+                }
+            }
+        },
+        "TestInternetGateway": {
+            "Type": "AWS::EC2::InternetGateway"
+        },
+        "ldapSecurityGroup": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "GroupDescription": "Allow incoming internal ldap and ssh traffic",
+                "SecurityGroupIngress": [
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "22",
+                        "ToPort": "22",
+                        "CidrIp": {
+                            "Fn::FindInMap": [
+                                "SubnetConfig",
+                                "VPC",
+                                "CIDR"
+                            ]
+                        }
+                    },
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "389",
+                        "ToPort": "389",
+                        "CidrIp": {
+                            "Fn::FindInMap": [
+                                "SubnetConfig",
+                                "VPC",
+                                "CIDR"
+                            ]
+                        }
+                    },
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "636",
+                        "ToPort": "636",
+                        "CidrIp": {
+                            "Fn::FindInMap": [
+                                "SubnetConfig",
+                                "VPC",
+                                "CIDR"
+                            ]
+                        }
+                    }
+                ],
+                "VpcId": {
+                    "Ref": "TestVpc"
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "LDAP Servers"
+                    },
+                    {
+                        "Key": "Environment",
+                        "Value": "Test"
+                    }
+                ]
+            }
+        },
+        "Group": {
+            "Type": "AWS::IAM::Group",
+            "Properties": {
+                "GroupName": "Students",
+                "Path": "/",
+                "Policies": [
+                    {
+                        "PolicyName": "students-policy",
+                        "PolicyDocument": {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "cloud9:DescribeEnvironments",
+                                        "cloud9:ListEnvironments",
+                                        "cloud9:GetUserPublicKey",
+                                        "cloud9:GetUserSettings",
+                                        "cloud9:GetEnvironmentConfig",
+                                        "cloud9:UpdateUserSettings",
+                                        "cloud9:ValidateEnvironmentName",
+                                        "ec2:DescribeSubnets",
+                                        "ec2:DescribeVpcs",
+                                        "ec2:AuthorizeSecurityGroupIngress",
+                                        "ec2:RevokeSecurityGroupIngress",
+                                        "iam:GetUser",
+                                        "iam:ListUsers"
+                                    ],
+                                    "Resource": "*"
+                                },
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "cloud9:DescribeEnvironmentMemberships"
+                                    ],
+                                    "Resource": "*",
+                                    "Condition": {
+                                        "Null": {
+                                            "cloud9:UserArn": "true",
+                                            "cloud9:EnvironmentId": "true"
+                                        }
+                                    }
+                                },
+                                {
+                                    "Action": [
+                                        "ec2:Describe*"
+                                    ],
+                                    "Resource": "*",
+                                    "Effect": "Allow",
+                                    "Condition": {
+                                        "StringEquals": {
+                                            "ec2:Region": "us-west-2"
+                                        }
+                                    }
+                                },
+                                {
+                                    "Action": [
+                                        "health:DescribeEventAggregates",
+                                        "iam:ListRoles"
+                                    ],
+                                    "Resource": [
+                                        "*"
+                                    ],
+                                    "Effect": "Allow"
+                                },
+                                {
+                                    "Action": [
+                                        "logs:GetLogEvents"
+                                    ],
+                                    "Resource": "*",
+                                    "Effect": "Allow"
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        },
+        "User": {
+            "Type": "AWS::IAM::User",
+            "Properties": {
+                "LoginProfile": {
+                    "Password": {
+                        "Fn::FindInMap": [
+                            "UserConfig",
+                            "Login",
+                            "Pass"
+                        ]
+                    }
+                },
+                "Path": "/",
+                "Groups": [
+                    "Students"
+                ],
+                "UserName": {
+                    "Fn::FindInMap": [
+                        "UserConfig",
+                        "Login",
+                        "Name"
+                    ]
+                }
+            }
+        }
+    }
+}
