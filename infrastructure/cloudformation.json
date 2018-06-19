@@ -19,7 +19,7 @@
         },
         "InstanceConfig": {
             "Ldap": {
-                "Ip": "10.0.2.100"
+                "Ip": "10.0.0.100"
             }
         },
         "UserConfig": {
@@ -50,7 +50,7 @@
                 "HostedZoneTags": [
                     {
                         "Key": "Name",
-                        "Value": "Lab's Private Hosted Zone"
+                        "Value": "Lab Private Hosted Zone"
                     }
                 ]
             }
