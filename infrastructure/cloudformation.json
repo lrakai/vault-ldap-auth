@@ -30,6 +30,52 @@
         }
     },
     "Resources": {
+        "PrivateHostedZone": {
+            "Type": "AWS::Route53::HostedZone",
+            "Properties": {
+                "HostedZoneConfig": {
+                    "Comment": "Hosted zone for ca-lab.private"
+                },
+                "Name": "ca-lab.private",
+                "VPCs": [
+                    {
+                        "VPCId": {
+                            "Ref": "TestVpc"
+                        },
+                        "VPCRegion": {
+                            "Ref": "Region"
+                        }
+                    }
+                ],
+                "HostedZoneTags": [
+                    {
+                        "Key": "Name",
+                        "Value": "Lab's Private Hosted Zone"
+                    }
+                ]
+            }
+        },
+        "PrivateRecordSetGroup": {
+            "Type": "AWS::Route53::RecordSetGroup",
+            "DependsOn": "PrivateHostedZone",
+            "Properties": {
+                "HostedZoneName": "ca-lab.private",
+                "Comment": "LDAP server DNS name",
+                "RecordSets": [
+                    {
+                        "Name": "ldap.ca-lab.private.",
+                        "Type": "A",
+                        "ResourceRecords": {
+                            "Fn::GetAtt": [
+                                "LdapInstance",
+                                "PublicIp"
+                            ]
+                        },
+                        "TTL": "900"
+                    }
+                ]
+            }
+        },
         "LdapInstance": {
             "Type": "AWS::EC2::Instance",
             "Properties": {
