@@ -170,7 +170,7 @@
                 }
             }
         },
-        "AppEc2InstanceRole": {
+        "LdapEc2InstanceRole": {
             "Type": "AWS::IAM::Role",
             "Properties": {
                 "AssumeRolePolicyDocument": {
@@ -192,7 +192,7 @@
                 "Path": "/",
                 "Policies": [
                     {
-                        "PolicyName": "app-instance-policy",
+                        "PolicyName": "ldap-instance-policy",
                         "PolicyDocument": {
                             "Version": "2012-10-17",
                             "Statement": [
@@ -207,16 +207,16 @@
                         }
                     }
                 ],
-                "RoleName": "app-instance-role"
+                "RoleName": "ldap-instance-role"
             }
         },
-        "AppInstanceProfile": {
+        "LdapInstanceProfile": {
             "Type": "AWS::IAM::InstanceProfile",
             "Properties": {
                 "Path": "/",
                 "Roles": [
                     {
-                        "Ref": "AppEc2InstanceRole"
+                        "Ref": "LdapEc2InstanceRole"
                     }
                 ]
             }
@@ -347,7 +347,7 @@
         "TestInternetGateway": {
             "Type": "AWS::EC2::InternetGateway"
         },
-        "ldapSecurityGroup": {
+        "LdapSecurityGroup": {
             "Type": "AWS::EC2::SecurityGroup",
             "Properties": {
                 "GroupDescription": "Allow incoming internal ldap and ssh traffic",
