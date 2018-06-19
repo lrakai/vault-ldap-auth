@@ -36,7 +36,7 @@
                 "HostedZoneConfig": {
                     "Comment": "Hosted zone for ca-lab.private"
                 },
-                "Name": "ca-lab.private",
+                "Name": "ca-lab.private.",
                 "VPCs": [
                     {
                         "VPCId": {
@@ -59,18 +59,20 @@
             "Type": "AWS::Route53::RecordSetGroup",
             "DependsOn": "PrivateHostedZone",
             "Properties": {
-                "HostedZoneName": "ca-lab.private",
+                "HostedZoneName": "ca-lab.private.",
                 "Comment": "LDAP server DNS name",
                 "RecordSets": [
                     {
                         "Name": "ldap.ca-lab.private.",
                         "Type": "A",
-                        "ResourceRecords": {
-                            "Fn::GetAtt": [
-                                "LdapInstance",
-                                "PublicIp"
-                            ]
-                        },
+                        "ResourceRecords": [
+                            {
+                                "Fn::GetAtt": [
+                                    "LdapInstance",
+                                    "PublicIp"
+                                ]
+                            }
+                        ],
                         "TTL": "900"
                     }
                 ]
