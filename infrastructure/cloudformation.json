@@ -69,7 +69,7 @@
                             {
                                 "Fn::GetAtt": [
                                     "LdapInstance",
-                                    "PublicIp"
+                                    "PrivateIp"
                                 ]
                             }
                         ],
