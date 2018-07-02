@@ -46,13 +46,6 @@ Deploy the CloudFormation `infrastructure/cloudformation.json` template. The tem
     vault policy write engineering Engineering.hcl
     ```
 
-1. Use the CA to sign the certificate in the CSR created earlier:
-
-    ```sh
-    sudo openssl ca -days 100 -notext -md sha256 -batch -in req.csr -keyfile ca/ca.key.pem -cert ca/ca.crt -out cert.pem
-    sudo chmod 444 cert.pem
-    ```
-
 1. Enable Vault LDAP auth:
 
     ```sh
@@ -82,7 +75,6 @@ Deploy the CloudFormation `infrastructure/cloudformation.json` template. The tem
     ```sh
     vault login -method=ldap username='Jeremy Cook'
     ```
-
 
 1. Confirm that you have the capabilities given in the engineering Vault policy:
 
